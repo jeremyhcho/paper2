@@ -77,10 +77,11 @@ class MainEditor extends Component {
     )
   }
 
-  handleDoubleSidedMd = (block, symbol, style, triggeringChar) => {
+  handleDoubleSidedMd = ({ block, symbol, style, char: triggeringChar }) => {
     let editorState = this.state.editorState
     let contentState = editorState.getCurrentContent()
     let selectionState = editorState.getSelection()
+    console.log(block)
     const originalCharList = block.getCharacterList()
     const blockMap = contentState.getBlockMap()
     const originalText = block.getText()
