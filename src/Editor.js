@@ -8,7 +8,32 @@ class MainEditor extends Component {
   }
 
   onChange = (editorState) => {
-    this.setState({ editorState })
+    let newEditorState = editorState
+    newEditorState = this.handleBackspace(editorState)
+    this.setState({ editorState: newEditorState })
+  }
+
+  handleBackspace = (editorState) => {
+    let contentState = editorState.getCurrentContent()
+    const selectionState = editorState.getSelection()
+    const blockMap = contentState.getBlockMap()
+    const key = selectionState.getStartKey()
+    let block = contentState.getBlockForKey(key)
+
+    if (block.getType() === "code-block" && block.getText().length === 1) {
+      block = block.merge({
+        text: "",
+        type: "unstyled"
+      })
+
+      contentState = contentState.merge({
+        blockMap: blockMap.set(key, block)
+      })
+
+      editorState = EditorState.push(editorState, contentState, "change-block-type")
+    }
+
+    return editorState
   }
 
   setEditor = (editor) => {
@@ -191,6 +216,47 @@ class MainEditor extends Component {
     return EditorState.push(editorState, contentState)
   }
 
+  shouldHandleInlineCodeBlock = (editorState) => {
+    const contentState = editorState.getCurrentContent()
+    const selectionState = editorState.getSelection()
+    const key = selectionState.getStartKey()
+    const block = contentState.getBlockForKey(key)
+    const blockText = block.getText()
+
+    const indices = []
+    for (let i = 0; i < blockText.length; i++) {
+      if (blockText[i] === "`") {
+        indices.push(i)
+      }
+    }
+
+    return (
+      indices.length === 2 &&
+      indices[1] - indices[0] > 1 &&
+      blockText.replace(" ", "").length !== 2
+    )
+  }
+
+  handleInlineCodeBlock = (editorState) => {
+    let contentState = editorState.getCurrentContent()
+    const selectionState = editorState.getSelection()
+    const key = selectionState.getStartKey()
+    const block = contentState.getBlockForKey(key)
+    const blockMap = contentState.getBlockMap()
+    const text = block.getText()
+
+    const newBlock = block.merge({
+      type: "code-block",
+      text: text.slice(1, text.length - 1)
+    })
+
+    contentState = contentState.merge({
+      blockMap: blockMap.set(key, newBlock)
+    })
+
+    return EditorState.push(editorState, contentState, "change-block-type")
+  }
+
   handleBeforeInput = (char) => {
     const editorState = this.state.editorState
     const selectionState = editorState.getSelection()
@@ -205,15 +271,29 @@ class MainEditor extends Component {
           return "handled"
         }
 
-        return "unhandled"
       default:
         if (this.shouldHandleBold(block.getText())) {
-          this.onChange(this.handleDoubleSidedMd(block, "**", "BOLD", char))
+          this.onChange(this.handleDoubleSidedMd({
+            block: block,
+            symbol: "**",
+            style: "BOLD",
+            char: char
+          }))
           return "handled"
         }
 
         if (this.shouldHandleItalic(block.getText())) {
-          this.onChange(this.handleDoubleSidedMd(block, "*", "ITALIC", char))
+          this.onChange(this.handleDoubleSidedMd({
+            block: block,
+            symbol: "*",
+            style: "ITALIC",
+            char: char
+          }))
+          return "handled"
+        }
+
+        if (this.shouldHandleInlineCodeBlock(editorState)) {
+          this.onChange(this.handleInlineCodeBlock(editorState))
           return "handled"
         }
 
